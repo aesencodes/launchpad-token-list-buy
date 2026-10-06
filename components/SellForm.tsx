@@ -65,6 +65,9 @@ export function SellForm({
   else if (!isSupportedChain) blockers.push("Switch to Robinhood Chain Testnet");
   if (!isNativePair) blockers.push("This token is paired with a non-ETH asset, which this form does not support");
   if (!phase.buyable) blockers.push(`Token is not on the bonding curve (${phase.label})`);
+  // `readyToGraduate()` closes the sell side even while the factory phase is
+  // still `NotGraduated`, so the curve would revert `CurveGraduated`.
+  if (token.readyToGraduate) blockers.push("Curve is fully bought out — selling is closed until graduation completes");
   if (!hasReserves) blockers.push("Curve reserves could not be read");
   if (parsed && !parsed.ok) blockers.push(PARSE_FAILURE_MESSAGE[parsed.reason]);
   if (parsed?.ok && quote && quote.quoteOut === 0n) blockers.push("Amount too small to receive any ETH");
@@ -72,7 +75,13 @@ export function SellForm({
 
   const amountReady = parsed?.ok === true && quote !== null && quote.quoteOut > 0n;
   const canSubmit =
-    isConnected && isSupportedChain && isNativePair && phase.buyable && amountReady && !insufficientTokens;
+    isConnected &&
+    isSupportedChain &&
+    isNativePair &&
+    phase.buyable &&
+    !token.readyToGraduate &&
+    amountReady &&
+    !insufficientTokens;
 
   const handlePrimary = () => {
     if (!canSubmit || !address || !parsed?.ok) return;

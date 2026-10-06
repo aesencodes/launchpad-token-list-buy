@@ -148,10 +148,11 @@ Key decisions and why:
    interval rather than cached behind a cursor: it costs ~11 requests today and it stays correct
    if a launch lands while the page is open or the node reorgs.
 2. **Per-token reads are one flat Multicall3 batch.** `hooks/useTokenDetails.ts` builds a
-   fixed-stride contract array (12 calls per token: name, symbol, logo, decimals, description,
-   `getReserves`, `realQuoteReserve`, `graduationThreshold`, `feeBps`, `creatorTaxBps`,
-   `getLaunchedToken`, `balanceOf`) and sends it through `aggregate3` with `allowFailure: true`
-   and `batchSize: 64`. One broken token degrades to a partial card instead of blanking the list.
+   fixed-stride contract array (13 calls per token: name, symbol, logo, decimals, description,
+   `getReserves`, `realQuoteReserve`, `graduationThreshold`, `readyToGraduate`, `feeBps`,
+   `creatorTaxBps`, `getLaunchedToken`, `balanceOf`) and sends it through `aggregate3` with
+   `allowFailure: true` and `batchSize: 64`. One broken token degrades to a partial card instead
+   of blanking the list.
    `balanceOf` is always included (with `0x0` when disconnected) so the array shape — and
    therefore the index arithmetic — never changes.
 3. **All arithmetic is `bigint`.** `lib/bondingCurve.ts` is pure and framework-free. Wei values
@@ -284,6 +285,21 @@ out to be *wrong*; these are the places where it is incomplete or could mislead.
     the `<html>` element's `next/font` variable classes. It is a Next.js dev-server artifact: the
     production build loads with **no console errors or warnings** (checked by driving the built app
     in headless Chrome and capturing the console — see `scripts/screenshots.mjs`).
+11. **A curve can be closed while the factory phase still says `NotGraduated`.** `buy()` refunds
+    past the reserved allocation instead of rejecting, so the last buy can leave
+    `sellableTokens() == 0`. At the end of that same buy the curve calls
+    `factory.graduate(token)` inside `_tryAutoGraduate`, which swallows a failed graduation
+    preflight and only emits `AutoGraduationFailed`. The curve is then closed on **both** sides —
+    `sell` reverts `if (graduated || readyToGraduate())`, and `buy` reverts on its own
+    `sellable == 0` check — while `phase` is still `0`. So `phase == 0` is not sufficient to mean
+    "tradeable": the authoritative flag is the curve's `readyToGraduate()`
+    (`sellableTokens() == 0`, `false` once `graduated`), which the app reads through Multicall3 and
+    blocks both forms on. There is deliberately **no button** for this state: `createGraduatedPool`
+    requires phase `1` (`Swept`), `graduate` re-runs the preflight that just failed, and `sell`/`buy`
+    are closed by design so the pool still seeds at the deterministic graduation price. The panel
+    explains that instead of offering an action that cannot work. No sample token is in this state
+    (all five read `readyToGraduate == false`), so the guard is verified against the source and the
+    live selector rather than by demoing it; `scripts/verify-onchain.mjs` prints the flag per token.
 
 ---
 
@@ -362,8 +378,6 @@ live demo.
 - **No automated test suite.** Verification is via the scripts above plus the browser run; adding
   unit tests for `lib/bondingCurve.ts` and `lib/format.ts` would be the first next step.
 - **Non-ETH pair tokens cannot be traded** in this UI even though the factory supports them.
-- **Sell does not warn when the curve is `readyToGraduate` but the phase flag is still 0**; the
-  contract reverts with `CurveGraduated` and that message is shown instead.
 
 ---
 

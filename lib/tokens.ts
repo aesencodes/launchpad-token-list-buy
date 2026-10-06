@@ -24,6 +24,12 @@ export type TokenSummary = {
   /** `realQuoteReserve()` — the ETH actually collected, excluding virtuals/fees. */
   realQuoteReserve: bigint;
   graduationThreshold: bigint;
+  /**
+   * `readyToGraduate()` on the curve: the sellable allocation is exhausted.
+   * Trading is already closed when this is true, even while `phase` is still
+   * `NotGraduated` (the crossing buy's auto-graduation preflight can fail).
+   */
+  readyToGraduate: boolean;
 
   feeBps: bigint;
   creatorTaxBps: bigint;

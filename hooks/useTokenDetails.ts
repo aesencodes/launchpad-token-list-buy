@@ -26,6 +26,7 @@ const FIELDS = [
   "reserves",
   "realQuoteReserve",
   "graduationThreshold",
+  "readyToGraduate",
   "feeBps",
   "creatorTaxBps",
   "launchedToken",
@@ -69,6 +70,7 @@ export function useTokenDetails(
       list.push({ address: launch.curve, abi: bondingCurveAbi, functionName: "getReserves" });
       list.push({ address: launch.curve, abi: bondingCurveAbi, functionName: "realQuoteReserve" });
       list.push({ address: launch.curve, abi: bondingCurveAbi, functionName: "graduationThreshold" });
+      list.push({ address: launch.curve, abi: bondingCurveAbi, functionName: "readyToGraduate" });
       list.push({ address: launch.curve, abi: bondingCurveAbi, functionName: "feeBps" });
       list.push({ address: launch.curve, abi: bondingCurveAbi, functionName: "creatorTaxBps" });
       list.push({
@@ -153,6 +155,9 @@ export function useTokenDetails(
         tokenReserve,
         realQuoteReserve,
         graduationThreshold,
+        // A failed read defaults to `false` (tradeable), which is the pre-existing
+        // behaviour: the receipt-time `CurveGraduated` translation still applies.
+        readyToGraduate: read("readyToGraduate", false),
         feeBps: read("feeBps", 0n),
         creatorTaxBps: read("creatorTaxBps", 0n),
         priceWeiPerToken: spotPriceWeiPerToken(quoteReserve ?? 0n, tokenReserve ?? 0n, 18),

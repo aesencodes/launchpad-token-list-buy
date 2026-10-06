@@ -136,6 +136,13 @@ chunked (`lib/launchpad.ts`). Re-read `lib/chain.ts` before touching chain confi
 - Phase enum from `getLaunchedToken(token).phase`: `0` NotGraduated (buyable),
   `1` Swept (curve exhausted, pool not created), `2` PoolCreated (graduated),
   `3` Rescued (graduation cancelled). Only phase `0` may be bought.
+- `phase == 0` does not by itself mean tradeable. The curve closes both sides on
+  `readyToGraduate()` (a real `view` on `BondingCurve`, `sellableTokens() == 0`, `false`
+  once `graduated`) regardless of the factory phase: `sell` reverts `if (graduated ||
+  readyToGraduate())` and `buy` reverts on its own `sellable == 0` check. A failed
+  `_tryAutoGraduate` preflight (swallowed, leaving only `AutoGraduationFailed`) parks a
+  launch in exactly that state, so read `readyToGraduate()` in the multicall and block
+  both forms on it. Do not offer `createGraduatedPool` there — it requires phase `1`.
 - Custom errors that must be translated: `SlippageExceeded`, `CurveGraduated`. Also handle
   `NativeValueMismatch`, `InsufficientLiquidity`, `LaunchFeeNotPaid`, `NotWhitelisted`,
   `LaunchEconomicsMismatch`, `UserRejectedRequestError`. Never surface raw hex.

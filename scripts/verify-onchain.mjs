@@ -91,7 +91,19 @@ async function main() {
 
   for (const log of logs) {
     const { token, curve, deployer, pairToken, launchConfigId, graduationThreshold } = log.args;
-    const [name, symbol, logo, reserves, real, feeBps, creatorTaxBps, snipeTaxBps, launched] = await Promise.all([
+    const [
+      name,
+      symbol,
+      logo,
+      reserves,
+      real,
+      feeBps,
+      creatorTaxBps,
+      snipeTaxBps,
+      readyToGraduate,
+      sellableTokens,
+      launched,
+    ] = await Promise.all([
       client.readContract({ address: token, abi: tokenAbi, functionName: "name" }),
       client.readContract({ address: token, abi: tokenAbi, functionName: "symbol" }),
       client.readContract({ address: token, abi: tokenAbi, functionName: "logo" }),
@@ -100,6 +112,8 @@ async function main() {
       client.readContract({ address: curve, abi: curveAbi, functionName: "feeBps" }),
       client.readContract({ address: curve, abi: curveAbi, functionName: "creatorTaxBps" }),
       client.readContract({ address: curve, abi: curveAbi, functionName: "snipeTaxStartBps" }),
+      client.readContract({ address: curve, abi: curveAbi, functionName: "readyToGraduate" }),
+      client.readContract({ address: curve, abi: curveAbi, functionName: "sellableTokens" }),
       client.readContract({ address: FACTORY, abi: factoryAbi, functionName: "getLaunchedToken", args: [token] }),
     ]);
     const [quoteReserve, tokenReserve] = reserves;
@@ -114,6 +128,9 @@ async function main() {
     );
     console.log(
       `  quoteReserve=${quoteReserve} tokenReserve=${tokenReserve} realQuoteReserve=${real} threshold=${graduationThreshold}`,
+    );
+    console.log(
+      `  readyToGraduate=${readyToGraduate} sellableTokens=${sellableTokens} (trading is closed whenever readyToGraduate is true, even if phase is still 0)`,
     );
     console.log(
       `  price=${price} wei/token (${price / 10n ** 12n === 0n ? "very small" : ""}) progressBps=${progressBps} feeBps=${feeBps} creatorTaxBps=${creatorTaxBps} snipeTaxStartBps=${snipeTaxBps}`,

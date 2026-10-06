@@ -150,6 +150,20 @@ export function TradePanel({ token, wallet, ethBalance, onClose, onRefresh }: Tr
 
           {token.phase === 1 ? <GraduateAction token={token} onDone={onRefresh} /> : null}
 
+          {/*
+           * The window between the curve filling and the factory phase moving
+           * to `Swept`: `_tryAutoGraduate` swallowed a failed graduation, so
+           * the curve is already closed while `phase` still reads
+           * `NotGraduated`. Both forms block on it; this says why.
+           */}
+          {token.phase === 0 && token.readyToGraduate ? (
+            <Alert tone="warning" title="Curve filled — graduation pending">
+              The bonding curve is fully bought out, so buying and selling on it are closed. Moving the launch into its
+              Uniswap v4 pool has not completed yet, so there is nothing to trade here until it does. The panel keeps
+              polling and will switch over on its own.
+            </Alert>
+          ) : null}
+
           {!phase.buyable ? (
             <Alert tone="info" title={phase.label}>
               {phase.description}
