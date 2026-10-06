@@ -210,8 +210,9 @@ Sell: `approve(curve, tokensIn)` on the token, then `sell(tokensIn, minQuoteOut,
   name, symbol, price, graduation progress bar, phase label, ETH raised / threshold.
 - Three distinct states for the list: loading (skeletons), empty, error (with retry button).
 - Buy form disables the submit button unless: wallet connected, correct chain, amount parses
-  to > 0 with ≤ 18 decimals, balance covers the amount, `tokensOut > 0`, phase is `0`, and the
-  pair asset is native ETH. When the blocker is a wallet action (not connected / wrong chain) a
+  to > 0 with ≤ 18 decimals, balance covers the amount, `tokensOut > 0`, phase is `0`, the pair
+  asset is native ETH, and the curve is not already `readyToGraduate()` (see `lib/phase.ts` →
+  `isGraduationPending`). When the blocker is a wallet action (not connected / wrong chain) a
   separate "Connect wallet" / "Switch network" button is rendered above the disabled buy button
   — the buy button itself is never enabled for a transaction that cannot be sent.
 - Estimate updates as the user types. Slippage selector defaults to 1%.

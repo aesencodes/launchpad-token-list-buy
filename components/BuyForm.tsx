@@ -6,7 +6,7 @@ import type { Address } from "viem";
 import { explorerTxUrl } from "@/lib/chain";
 import { applySlippage, quoteBuy } from "@/lib/bondingCurve";
 import { formatBpsPercent, formatEth, formatInputAmount, formatTokenAmount } from "@/lib/format";
-import { phaseMeta } from "@/lib/phase";
+import { isGraduationPending, phaseMeta } from "@/lib/phase";
 import { PARSE_FAILURE_MESSAGE, parseEthInput, slippageLabel } from "@/lib/tokenInput";
 import { NATIVE_PAIR_TOKEN } from "@/lib/contracts";
 import type { TokenSummary } from "@/lib/tokens";
@@ -72,9 +72,7 @@ export function BuyForm({
   else if (!isSupportedChain) blockers.push("Switch to Robinhood Chain Testnet");
   if (!isNativePair) blockers.push("This token is paired with a non-ETH asset, which this form does not support");
   if (!phase.buyable) blockers.push(`Token is not on the bonding curve (${phase.label})`);
-  // `readyToGraduate()` closes the buy side even while the factory phase is
-  // still `NotGraduated`, so the curve would revert `CurveGraduated`.
-  if (token.readyToGraduate) blockers.push("Curve is fully bought out — buying is closed until graduation completes");
+  if (isGraduationPending(token)) blockers.push("Curve is fully bought out — buying is closed until graduation completes");
   if (!hasReserves) blockers.push("Curve reserves could not be read");
   if (parsed && !parsed.ok) blockers.push(PARSE_FAILURE_MESSAGE[parsed.reason]);
   if (parsed?.ok && quote && quote.tokensOut === 0n) blockers.push("Amount too small to buy any tokens");
@@ -86,7 +84,7 @@ export function BuyForm({
     isSupportedChain &&
     isNativePair &&
     phase.buyable &&
-    !token.readyToGraduate &&
+    !isGraduationPending(token) &&
     amountReady &&
     !insufficientBalance;
 

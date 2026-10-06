@@ -174,8 +174,9 @@ Key decisions and why:
    tokensOut · (10000 − slippageBps) / 10000`, default 1 %, with 0.5/1/2/5/10 % presets.
 8. **One place decides "can this transaction be sent".** `BuyForm`/`SellForm` collect blockers
    (not connected, wrong chain, unparseable/zero/over-precise amount, insufficient balance, zero
-   output, phase ≠ 0, non-ETH pair) and disable the button. The buttons stay *enabled* when the
-   fix is a wallet action, so clicking *is* the fix (connect / switch network).
+   output, phase ≠ 0, curve already `readyToGraduate`, non-ETH pair) and disable the button. The
+   buttons stay *enabled* when the fix is a wallet action, so clicking *is* the fix (connect /
+   switch network). The shared curve predicates live in `lib/phase.ts` (`isGraduationPending`).
 9. **Errors are translated, never dumped.** `lib/errors.ts` maps the contract's custom errors
    (`SlippageExceeded`, `CurveGraduated`, …) plus wallet rejection, insufficient funds and chain
    mismatch to short readable messages. Raw hex is never rendered.

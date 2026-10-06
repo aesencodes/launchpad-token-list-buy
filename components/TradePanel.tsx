@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowLeftRight, ExternalLink, Info, ShieldCheck, X } from "lucide-react";
 import { explorerAddressUrl, explorerTxUrl } from "@/lib/chain";
 import { formatBpsPercent, formatEth, formatPriceEth, shortenAddress } from "@/lib/format";
-import { phaseMeta } from "@/lib/phase";
+import { isGraduationPending, phaseMeta } from "@/lib/phase";
 import type { TokenSummary } from "@/lib/tokens";
 import type { WalletState } from "@/hooks/useWallet";
 import { useGraduateToken } from "@/hooks/useGraduateToken";
@@ -156,11 +156,12 @@ export function TradePanel({ token, wallet, ethBalance, onClose, onRefresh }: Tr
            * the curve is already closed while `phase` still reads
            * `NotGraduated`. Both forms block on it; this says why.
            */}
-          {token.phase === 0 && token.readyToGraduate ? (
+          {isGraduationPending(token) ? (
             <Alert tone="warning" title="Curve filled — graduation pending">
-              The bonding curve is fully bought out, so buying and selling on it are closed. Moving the launch into its
-              Uniswap v4 pool has not completed yet, so there is nothing to trade here until it does. The panel keeps
-              polling and will switch over on its own.
+              The bonding curve is fully bought out, so buying and selling on it are closed. The launch has not
+              finished moving into its Uniswap v4 pool yet, and that step is completed by the factory rather than from
+              this panel, so there is nothing to do here until it does. This view keeps polling and will update on its
+              own.
             </Alert>
           ) : null}
 

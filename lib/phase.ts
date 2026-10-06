@@ -71,3 +71,14 @@ export function phaseMeta(phase: number | bigint | undefined | null): PhaseMeta 
   if (phase === undefined || phase === null) return UNKNOWN_PHASE;
   return PHASE_META[Number(phase)] ?? UNKNOWN_PHASE;
 }
+
+/**
+ * The window between the curve filling and the factory phase moving to `Swept`:
+ * `readyToGraduate()` is true while `phase` still reads `NotGraduated`, because
+ * the crossing buy's auto-graduation preflight failed. Both curve sides are
+ * already closed to trades, so the buy and sell forms block on this and the
+ * trade panel explains it.
+ */
+export function isGraduationPending(token: { phase: number; readyToGraduate: boolean }): boolean {
+  return token.phase === GraduationPhase.NotGraduated && token.readyToGraduate;
+}
