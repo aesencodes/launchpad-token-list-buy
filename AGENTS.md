@@ -257,8 +257,13 @@ Sell: `approve(curve, tokensIn)` on the token, then `sell(tokensIn, minQuoteOut,
 
 Never commit private keys, seed phrases, wallet credentials, API keys, RPC secrets or
 `.env` files. `.env*` is gitignored. There is no server-side secret in this project — the
-app talks to a public RPC with a public wallet connection. Never push to GitHub from an
-agent session.
+app talks to a public RPC with a public wallet connection.
+
+Pushing from an agent session is allowed on `development`, and only from a clean tree at a
+commit the gate has passed on: `npm run lint`, `npm run typecheck` and `npm run build` must
+all be green on that exact commit, and `git status --short` must be empty. Never force-push
+or rewrite published history, and never push to `main` — the default branch — from an agent
+session; that stays a human action. Report the branch and the commit hashes after pushing. 
 
 ## Implementation priorities
 
