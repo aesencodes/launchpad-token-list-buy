@@ -221,7 +221,11 @@ Sell: `approve(curve, tokensIn)` on the token, then `sell(tokensIn, minQuoteOut,
 
 ## Testing / verification
 
-- `npm run lint`, `npx tsc --noEmit`, `npm run build` must all pass.
+- `npm run lint`, `npm run typecheck`, `npm run build` must all pass. Always use
+  `npm run typecheck` (it runs `next typegen` first) — a bare `npx tsc --noEmit` fails on a fresh
+  clone because Next's global `LayoutProps`/`PageProps` types live in the gitignored `.next/`.
+- Re-verify the fresh-clone path after any config change: clone the pushed branch into an empty
+  directory, `npm ci`, then lint → typecheck → build, in that order.
 - `node scripts/verify-onchain.mjs` re-reads live contract data (use it to sanity-check
   numbers the UI shows).
 - `node scripts/verify-buy-quote.mjs <token> <eth> <url>` drives the buy and sell forms in

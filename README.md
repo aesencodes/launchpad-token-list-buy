@@ -44,9 +44,14 @@ Checks:
 
 ```bash
 npm run lint         # eslint
-npx tsc --noEmit     # typecheck
+npm run typecheck    # next typegen + tsc --noEmit
 npm run build        # production build (also typechecks)
 ```
+
+> Run `npm run typecheck`, not a bare `npx tsc --noEmit`: Next.js generates the global
+> `LayoutProps` / `PageProps` helpers into the gitignored `.next/` directory, so on a fresh clone
+> `tsc` alone fails with `Cannot find name 'LayoutProps'` until some Next command has run.
+> `npm run typecheck` runs `next typegen` first, which is why it works from a clean checkout.
 
 ### Using the app
 
@@ -286,7 +291,7 @@ out to be *wrong*; these are the places where it is incomplete or could mislead.
 
 Automated:
 
-- `npm run lint`, `npx tsc --noEmit`, `npm run build` — all clean.
+- `npm run lint`, `npm run typecheck`, `npm run build` — all clean.
 - `node scripts/verify-onchain.mjs` — dumps the live launch records. Used to confirm the five
   sample tokens, the phase values, `launchFee()`, the launch configs and the economics digest.
 - `node scripts/verify-buy-quote.mjs 0x505181e3114a6d147839Cb809C84d4e83575a97C 0.001` — the
@@ -321,6 +326,9 @@ Automated:
   token), so the curve's own pricing logic runs against real reserves.
 - Headless-Chrome console capture over all six screenshots — no errors or warnings in the
   production build.
+- **Fresh-clone run:** the pushed branch was cloned into an empty directory, installed with
+  `npm ci`, then `npm run lint`, `npm run typecheck` and `npm run build` were run in that order — all
+  clean. This is what caught the `next typegen` requirement documented above.
 
 Manual (what you should do, and what I could not):
 
