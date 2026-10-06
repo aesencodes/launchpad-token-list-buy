@@ -1,11 +1,14 @@
 import { defineChain } from "viem";
+import { CONTRACTS } from "@/lib/contracts";
 
 /**
  * Robinhood Chain Testnet.
  *
  * The Multicall3 address is registered on the chain object so viem/wagmi
  * automatically route `multicall`/`useReadContracts` reads through
- * `aggregate3` instead of one RPC request per call.
+ * `aggregate3` instead of one RPC request per call. The value is imported from
+ * `lib/contracts.ts` rather than repeated here, so there is exactly one literal
+ * to update if it ever changes.
  */
 export const robinhoodTestnet = defineChain({
   id: 46630,
@@ -24,7 +27,7 @@ export const robinhoodTestnet = defineChain({
   },
   contracts: {
     multicall3: {
-      address: "0xcA11bde05977b3631167028862bE2a173976CA11",
+      address: CONTRACTS.multicall3,
     },
   },
   testnet: true,
