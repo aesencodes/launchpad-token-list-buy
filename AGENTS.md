@@ -86,7 +86,9 @@ technical-brief/         the brief and the provided ABIs (unmodified)
 Rules:
 
 - Chains/addresses live only in `lib/chain.ts` and `lib/contracts.ts`. No address literals
-  anywhere else. No token addresses in code at all (sample tokens are discovery-only).
+  anywhere else. No token addresses in app code at all — `app/`, `components/`, `hooks/`, `lib/`
+  (sample tokens are discovery-only). Dev-only harnesses under `scripts/` may default to TAXED or
+  GRAD as example targets; keep that out of the app.
 - No blockchain math in components. Components consume already-derived values.
 - No `fetch` to any third-party API; all data comes from the RPC via viem/wagmi.
 - Components never import from `wagmi/connectors` or build a client themselves; all chain
@@ -166,10 +168,12 @@ minTokensOut = tokensOut * (10000 - slippageBps) / 10000
 - Graduation progress = `realQuoteReserve / graduationThreshold` in basis points, capped at
   10000. Never render `0.00` for a price.
 - A graduated/closed curve has `tokenReserve == 0`; guard every division against zero.
-- Live `snipeTaxBps` also reduces the net input during a launch window (9900 bps decaying to
-  zero over 15 s), so the estimate is an upper bound for the first seconds after a launch. The
-  brief's formula omits it; the receipts are still authoritative. Do not model it without also
-  handling the contract's 1 %-floor clamp.
+- Live `snipeTaxBps` also reduces the net input during a launch window (`snipeTaxStartBps()` =
+  9900 bps, `snipeTaxSeconds()` = 3 s measured 2026-10-06 on the factory and every launch curve;
+  both are per-deployment config snapshotted at `initialize()`, not source constants), so the
+  estimate is an upper bound for the first seconds after a launch. The brief's formula omits it;
+  the receipts are still authoritative. Do not model it without also handling the contract's 1 %-floor
+  clamp.
 
 ## Bigint / precision rules
 
@@ -178,8 +182,9 @@ minTokensOut = tokensOut * (10000 - slippageBps) / 10000
   values already reduced to a display unit (percentage text, `phase`, list indices).
 - Parse user input with `parseEther`; reject anything with more than 18 decimals before
   parsing. Format only at the final UI layer (`lib/format.ts`).
-- Prices are tiny (1e7–1e9 wei per token). Use `formatTinyPrice`, which renders
-  `0.0₅1234`-style subscripts; never `toFixed(2)`.
+- Prices are tiny (1e7–1e9 wei per token). Use `formatPriceEth`, which renders
+  `0.0₅1234`-style subscripts (`formatUnitsSignificant`) and `—` for a curve with no liquidity;
+  never `toFixed(2)`.
 
 ## Token discovery rules
 
@@ -301,7 +306,9 @@ Issues and specs live as GitHub issues on `aesencodes/launchpad-token-list-buy`,
 ### Triage labels
 
 Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`,
-`ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+`ready-for-human`, `wontfix`. This repo does **not** apply them on its board today (only GitHub
+defaults plus the `wayfinder:*` labels exist); the list is the vocabulary to reach for if triage
+is ever run. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

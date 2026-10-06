@@ -10,8 +10,8 @@ number in them was read from Robinhood Chain Testnet at capture time.
 
 | File | View |
 | --- | --- |
-| `01-desktop-list.png` | Token list at 1440 px: 7 tokens discovered from `TokenLaunched`, prices, graduation progress, phase badges, launch fee in the header |
-| `02-desktop-buy-form.png` | Buy panel for TAXED (1 % curve fee + 10 % creator tax), estimate and slippage selector |
+| `01-desktop-list.png` | Token list at 1440 px: 7 tokens discovered at capture time from `TokenLaunched`, prices, graduation progress, phase badges, launch fee in the header |
+| `02-desktop-buy-form.png` | Buy panel for TAXED (1 % curve fee + 10 % creator tax): slippage selector, fee split and estimate rows. The capture has an empty amount field, so those rows read `—`; the populated 0.001 ETH numbers are in the root README, section 6 |
 | `03-desktop-graduated-token.png` | GRAD (phase 2): no price, progress replaced by the curve status, buy disabled |
 | `04-mobile-list.png` | 390 × 844 layout |
 | `05-mobile-buy-form.png` | Buy panel as a full-screen sheet on mobile |

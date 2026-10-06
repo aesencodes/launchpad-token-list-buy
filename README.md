@@ -99,21 +99,27 @@ see [section 6](#6-verification-performed).
 | 4 — per-token data through Multicall3 `aggregate3` + `allowFailure` | ✅ | `hooks/useTokenDetails.ts` |
 | 5 — list UI, phase labels, logo placeholders, loading/empty/error states | ✅ | `components/TokenList.tsx`, `components/TokenCard.tsx`, `components/TokenLogo.tsx` |
 | 6 — buy form, bigint curve estimate, slippage, disabled-state rules | ✅ | `components/BuyForm.tsx`, `lib/bondingCurve.ts`, `lib/tokenInput.ts` |
-| 7 — `buy(quoteIn, minTokensOut, recipient)`, all five transaction states, explorer links, error translation | ✅ | `hooks/useContractWrite.ts`, `hooks/useBuyToken.ts`, `lib/errors.ts` |
-| 8 — refresh price/progress/ETH balance/token balance without reload | ✅ | `hooks/useBuyToken.ts` (invalidate cache), `hooks/useTokenDetails.ts` (polling) |
+| 7 — `buy(quoteIn, minTokensOut, recipient)`, all five transaction states, explorer links, error translation | ⚠️ implemented, not executed | `hooks/useContractWrite.ts`, `hooks/useBuyToken.ts`, `lib/errors.ts` |
+| 8 — refresh price/progress/ETH balance/token balance without reload | ⚠️ implemented, not executed | `hooks/useBuyToken.ts` (invalidate cache), `hooks/useTokenDetails.ts` (polling) |
 | 9 — README + visual proof | ✅ | this file + `demo/` |
-| Bonus — launch your own token | ✅ | `components/LaunchTokenForm.tsx`, `hooks/useLaunchToken.ts` |
-| Bonus — sell | ✅ | `components/SellForm.tsx`, `hooks/useSellToken.ts` |
+| Bonus — launch your own token | ⚠️ implemented, not executed | `components/LaunchTokenForm.tsx`, `hooks/useLaunchToken.ts` |
+| Bonus — sell | ⚠️ implemented, not executed | `components/SellForm.tsx`, `hooks/useSellToken.ts` |
 | Bonus — sort + search | ✅ | `components/TokenList.tsx` |
-| Bonus — finish graduation (`createGraduatedPool`) | ✅ | `components/TradePanel.tsx`, `hooks/useGraduateToken.ts` |
+| Bonus — finish graduation (`createGraduatedPool`) | ⚠️ implemented, not executed | `components/TradePanel.tsx`, `hooks/useGraduateToken.ts` |
 | Bonus — token detail page with trade history | ❌ | not implemented; description/socials/creator are shown in the Details tab instead |
+
+`⚠️ implemented, not executed`: the code, its inputs and the exact contract call it builds are
+verified (form logic plus `eth_call` simulations against the live curve), but **no transaction was
+broadcast** — this environment had no funded signer. Steps 7 and 8 meet the brief's done-when
+expectations only once a buy has actually been mined in the live demo; see
+[section 6](#6-verification-performed) and [section 7](#7-what-is-unfinished).
 
 ### Screenshots
 
 | File | What it shows |
 | --- | --- |
 | `demo/01-desktop-list.png` | Token list, tokens discovered from events (more than the 5 samples), prices and progress |
-| `demo/02-desktop-buy-form.png` | Buy panel for TAXED (10 % creator tax) with the live estimate |
+| `demo/02-desktop-buy-form.png` | Buy panel for TAXED (10 % creator tax); the capture has an empty amount field, so every estimate row reads `—` — the populated 0.001 ETH numbers are transcribed in [section 6](#6-verification-performed) |
 | `demo/03-desktop-graduated-token.png` | GRAD in phase 2 — no price, buy disabled |
 | `demo/04-mobile-list.png` | 390 px layout |
 | `demo/05-mobile-buy-form.png` | Buy panel as a full-screen sheet on mobile |
@@ -132,7 +138,7 @@ app/
   providers.tsx        'use client' — WagmiProvider + QueryClientProvider
   page.tsx             'use client' — composition, polling, selection, deep links
   globals.css          Tailwind v4 entry + design tokens
-components/            presentational + interaction components (wallet/, token/, launch/)
+components/            presentational + interaction components (flat, one file per component)
 hooks/                 all on-chain data and transaction state
 lib/
   chain.ts             viem chain definition (RPC, explorer, Multicall3)
@@ -151,12 +157,15 @@ technical-brief/       the brief and the provided ABIs (unmodified)
 
 Key decisions and why:
 
-1. **Discovery is the only source of tokens.** No address of any sample token appears anywhere
-   in the source. `lib/launchpad.ts` scans `TokenLaunched` from the factory deploy block
-   (`129157568`) to `latest` in 50 000-block chunks — the public RPC rejects larger ranges — with
-   4 requests in flight, and deduplicates by token address. The scan is repeated by the polling
-   interval rather than cached behind a cursor: it costs ~11 requests today and it stays correct
-   if a launch lands while the page is open or the node reorgs.
+1. **Discovery is the only source of tokens.** No sample token address appears in the app code
+   (`app/`, `components/`, `hooks/`, `lib/`). The dev-only harnesses do default to TAXED/GRAD as
+   example targets (`scripts/screenshots.mjs`, `scripts/verify-buy-quote.mjs`), which is why
+   discovery still works without them. `lib/launchpad.ts` scans `TokenLaunched` from the factory
+   deploy block (`129157568`) to `latest` in 50 000-block chunks — the public RPC rejects larger
+   ranges — with 4 requests in flight, and deduplicates by token address. The scan is repeated by
+   the polling interval rather than cached behind a cursor: measured on 2026-10-06 at block
+   129,793,180 that is 13 requests per scan, and the count is derived from `latest`, so it stays
+   correct if a launch lands while the page is open or the node reorgs.
 2. **Per-token reads are one flat Multicall3 batch.** `hooks/useTokenDetails.ts` builds a
    fixed-stride contract array (13 calls per token: name, symbol, logo, decimals, description,
    `getReserves`, `realQuoteReserve`, `graduationThreshold`, `readyToGraduate`, `feeBps`,
@@ -184,9 +193,11 @@ Key decisions and why:
    tokensOut · (10000 − slippageBps) / 10000`, default 1 %, with 0.5/1/2/5/10 % presets.
 8. **One place decides "can this transaction be sent".** `BuyForm`/`SellForm` collect blockers
    (not connected, wrong chain, unparseable/zero/over-precise amount, insufficient balance, zero
-   output, phase ≠ 0, curve already `readyToGraduate`, non-ETH pair) and disable the button. The
-   buttons stay *enabled* when the fix is a wallet action, so clicking *is* the fix (connect /
-   switch network). The shared curve predicates live in `lib/phase.ts` (`isGraduationPending`).
+   output, phase ≠ 0, curve already `readyToGraduate`, non-ETH pair) and disable the **Buy** /
+   **Sell** button. When the only remaining fix is a wallet action, a *separate* **Connect
+   wallet** / **Switch network** button is rendered above it and stays enabled — the Buy/Sell
+   button itself never is, so a click can never attempt a transaction that cannot be sent. The
+   shared curve predicates live in `lib/phase.ts` (`isGraduationPending`).
 9. **Errors are translated, never dumped.** `lib/errors.ts` maps the contract's custom errors
    (`SlippageExceeded`, `CurveGraduated`, …) plus wallet rejection, insufficient funds and chain
    mismatch to short readable messages. Raw hex is never rendered.
@@ -250,8 +261,13 @@ out to be *wrong*; these are the places where it is incomplete or could mislead.
 
 1. **The brief omits the anti-snipe tax from the buy formula.** The deployed
    `BondingCurve.buy()` charges `snipeTax = spent · snipeTaxBps / 10000` on top of the fee and
-   creator tax, where `snipeTaxBps` starts at **9900 (99 %)** in the launch second and decays
-   exponentially to zero over **15 s** (`snipeTaxStartBps`, `snipeTaxSeconds`). The brief's
+   creator tax, where `snipeTaxBps` starts at **9900 (99 %)** in the launch second and decays to
+   zero by the end of the window (a 14-step right shift, i.e. halving every `window / 14`). Both
+   figures are **per-deployment config values, not source constants**: `snipeTaxStartBps()` and
+   `snipeTaxSeconds()`, snapshotted per curve at `initialize()`, so read them per curve. Measured
+   live on 2026-10-06 against the factory and all 16 launch curves: `snipeTaxStartBps = 9900`,
+   `snipeTaxSeconds = 3` — a **3-second** window, not 15 s (both reads are printed per curve by
+   `scripts/verify-onchain.mjs`). The brief's
    formula therefore *over-estimates* the tokens received for a buy placed in the first seconds of
    a brand-new launch. Note that the contract also clamps the total take so a buyer keeps at least
    1 % of their spend. This does not affect the sample tokens (all long past their window) and does
@@ -279,11 +295,13 @@ out to be *wrong*; these are the places where it is incomplete or could mislead.
    `phase == 0` with `exists == false` means "not a factory launch" rather than "on the curve".
    The app never relies on this (the event log is the source of truth) but it is a trap if you use
    the struct as a membership test.
-6. **Chunk count.** The brief says "about 7 requests today". At the time of writing the
-   deploy-block → head span is ~540 000 blocks, i.e. **11** requests. The code derives the count
-   from `latest`, so it stays correct as the chain grows.
+6. **Chunk count.** The brief says "about 7 requests today". Measured on 2026-10-06 at block
+   129,793,180 the deploy-block → head span is 635,613 blocks, i.e. **13** requests at 50 000
+   blocks each. Treat any number here as a dated snapshot: the code derives the count from
+   `latest`, so it stays correct as the chain grows, and `scripts/verify-onchain.mjs` prints the
+   ranges it actually requested.
 7. **The testnet is shared.** Extra `TEST` tokens launched by other candidates are already
-   present (8 launches at the last capture, versus the 5 sample tokens), so the list shows more
+   present (16 launches on 2026-10-06, versus the 5 sample tokens), so the list shows more
    than five. That is the intended behaviour and doubles as proof that discovery is dynamic — no
    code change was needed for them to appear. All five sample tokens are present at the expected
    addresses.
@@ -323,7 +341,8 @@ Automated:
   banner, `wallet_switchEthereumChain` for chain 46630, the `4902` → `wallet_addEthereumChain`
   fallback with this repo's RPC/explorer/currency, and the wallet bar rendering the address and the
   live balance. The under-funded path was exercised too (an address below `--min` fails the balance
-  check and nothing else). It proves the app's side of steps 2 and 4; it cannot prove that a real
+  check and nothing else). It proves the app's side of step 2 (connect, balance, switch/add
+  network); it cannot prove that a real
   wallet holds funds — that is the funding step below.
 - `npm run lint`, `npm run typecheck`, `npm run build` — all clean.
 - `node scripts/verify-onchain.mjs` — dumps the live launch records. Used to confirm the five
@@ -391,7 +410,7 @@ live demo.
   addresses; there is no `CurveBuy`/`CurveSell` history table.
 - **The anti-snipe tax is not modelled in the estimate** (see finding 1). The UI shows the brief's
   formula and the receipt corrects it.
-- **Full log rescan on every poll.** Fine at this chain size (~11 requests / 20 s); a real
+- **Full log rescan on every poll.** Fine at this chain size (13 requests / 20 s, 2026-10-06); a real
   deployment would move discovery to an indexed backend or keep a persisted cursor.
 - **No automated test suite.** Verification is via the scripts above plus the browser run; adding
   unit tests for `lib/bondingCurve.ts` and `lib/format.ts` would be the first next step.
