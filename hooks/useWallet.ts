@@ -1,6 +1,6 @@
 "use client";
 
-import { useChainId, useChains, useConnect, useConnection, useConnectors, useDisconnect, useSwitchChain } from "wagmi";
+import { useChains, useConnect, useConnection, useConnectors, useDisconnect, useSwitchChain } from "wagmi";
 import { useCallback, useMemo, useState } from "react";
 import { robinhoodTestnet } from "@/lib/chain";
 import { describeError, type FriendlyError } from "@/lib/errors";
@@ -41,7 +41,19 @@ export function useWallet(): WalletState {
   const mounted = useIsMounted();
   const connection = useConnection();
   const { connectAsync } = useConnect();
-  const chainId = useChainId();
+  /**
+   * The chain the *wallet* is on, read from the connection.
+   *
+   * `useChainId()` is not that value: it returns the wagmi config's chain, and
+   * in this single-chain config the config only follows the connection when the
+   * reported chain is itself configured (`createConfig`'s `syncConnectedChain`
+   * subscriber bails out otherwise). So a wallet sitting on another network
+   * left `useChainId()` reading `46630` and this hook reporting a supported
+   * chain — the wrong-network banner never rendered and a write went to
+   * whatever chain the wallet was really on. The connection carries the live
+   * wallet chain, and `change` events keep it current after a switch.
+   */
+  const chainId = connection.chainId;
   const chains = useChains();
   const connectors = useConnectors();
   const { disconnect } = useDisconnect();
