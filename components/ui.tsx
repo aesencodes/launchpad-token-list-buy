@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -97,9 +97,10 @@ export function Button({
 /* Badge                                                                      */
 /* -------------------------------------------------------------------------- */
 
-export function Badge({ className, children }: { className?: string; children: ReactNode }) {
+export function Badge({ className, children, ...rest }: ComponentProps<"span">) {
   return (
     <span
+      {...rest}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
         className,
@@ -160,15 +161,20 @@ export function Alert({
   children,
   action,
   className,
+  ...rest
 }: {
   tone?: AlertTone;
   title?: ReactNode;
   children?: ReactNode;
   action?: ReactNode;
   className?: string;
-}) {
+} & ComponentProps<"div">) {
   return (
-    <div className={cn("rounded-xl border px-3.5 py-3 text-sm", ALERT_TONES[tone], className)} role="status">
+    <div
+      {...rest}
+      className={cn("rounded-xl border px-3.5 py-3 text-sm", ALERT_TONES[tone], className)}
+      role="status"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {title ? <p className="font-semibold">{title}</p> : null}

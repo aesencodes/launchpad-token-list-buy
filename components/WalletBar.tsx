@@ -59,6 +59,7 @@ export function WalletBar({ wallet, className }: { wallet: WalletState; classNam
           onClick={wallet.connect}
           loading={wallet.isConnecting}
           icon={<Wallet className="size-4" aria-hidden />}
+          data-testid="connect-wallet"
         >
           Connect wallet
         </Button>
@@ -68,7 +69,12 @@ export function WalletBar({ wallet, className }: { wallet: WalletState; classNam
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] py-1.5 pl-3 pr-1.5">
+      {/* `data-testid` here and on the badge is the contract `scripts/check-wallet.mjs`
+          drives the browser against; keep them in sync with that script. */}
+      <div
+        className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] py-1.5 pl-3 pr-1.5"
+        data-testid="wallet-bar"
+      >
         <span
           className={cn("size-2 rounded-full", wallet.isSupportedChain ? "bg-emerald-400" : "bg-amber-400")}
           aria-hidden
@@ -76,7 +82,7 @@ export function WalletBar({ wallet, className }: { wallet: WalletState; classNam
         <span className="font-mono text-xs font-medium text-zinc-200">{shortenAddress(wallet.address, 4)}</span>
         <CopyAddressButton address={wallet.address} />
         <span className="mx-0.5 h-4 w-px bg-white/10" aria-hidden />
-        <Badge className="border-0 bg-white/[0.06] text-zinc-200 ring-white/10">
+        <Badge className="border-0 bg-white/[0.06] text-zinc-200 ring-white/10" data-testid="wallet-balance">
           {balance.isLoading && !balance.data ? "…" : `${formatEth(balance.data?.value, 4)} ETH`}
         </Badge>
       </div>

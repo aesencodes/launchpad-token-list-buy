@@ -11,6 +11,9 @@ import { Alert, Button } from "@/components/ui";
  * The switch button also *adds* the network, because MetaMask does not ship
  * with chain 46630: wagmi's injected connector falls back to
  * `wallet_addEthereumChain` when `wallet_switchEthereumChain` returns 4902.
+ *
+ * `data-testid="network-banner"` / `"switch-network"` are the contract
+ * `scripts/check-wallet.mjs` drives the browser against.
  */
 export function NetworkBanner({ wallet }: { wallet: WalletState }) {
   if (!wallet.mounted) return null;
@@ -30,6 +33,7 @@ export function NetworkBanner({ wallet }: { wallet: WalletState }) {
         tone="warning"
         title={`Wrong network — your wallet is on chain ${wallet.chainId ?? "unknown"}`}
         className="mb-4"
+        data-testid="network-banner"
         action={
           <Button
             type="button"
@@ -38,6 +42,7 @@ export function NetworkBanner({ wallet }: { wallet: WalletState }) {
             onClick={wallet.switchToRobinhood}
             loading={wallet.isSwitchingChain}
             disabled={!wallet.canSwitchChain}
+            data-testid="switch-network"
           >
             Switch to {robinhoodTestnet.name}
           </Button>

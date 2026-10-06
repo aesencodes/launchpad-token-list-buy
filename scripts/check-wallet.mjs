@@ -27,21 +27,49 @@
  *
  *   <address>      the wallet to check (any EIP-55 or lowercase 0x address)
  *   --min <eth>    required balance in ETH (default 0.05, the ticket's target)
- *   --app <url>    also drive the app at this URL in headless Chrome
- *                  (needs the app running; the default is http://localhost:3000)
+ *   --app [url]    also drive the app in headless Chrome (needs it running;
+ *                  the URL defaults to http://localhost:3000)
+ *
+ * The `--app` phase asserts on the app's `data-testid` hooks, not on button
+ * copy, so a wording change cannot turn a working app into a FAIL.
  *
  * Exit code is 0 only when every check that ran passed.
  */
 import { spawn } from "node:child_process";
-import { getAddress, parseEther, formatUnits } from "viem";
+import { createPublicClient, formatUnits, getAddress, http, parseEther } from "viem";
 
 /* Chain configuration, kept in sync with `lib/chain.ts` (the scripts are plain
- * Node and cannot resolve the app's `@/` path alias). */
-const CHAIN_ID = 46630;
-const CHAIN_NAME = "Robinhood Chain Testnet";
-const RPC_URL = "https://robinhood-sepolia-rpc.publicnode.com";
-const EXPLORER_URL = "https://explorer.testnet.chain.robinhood.com";
-const NATIVE_CURRENCY = { name: "Ether", symbol: "ETH", decimals: 18 };
+ * Node and cannot resolve the app's `@/` path alias). Same shape as
+ * `scripts/verify-buy-quote.mjs`, and the single source for both the client
+ * below and the add-network parameters the app must send. */
+const CHAIN = {
+  id: 46630,
+  name: "Robinhood Chain Testnet",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: { default: { http: ["https://robinhood-sepolia-rpc.publicnode.com"] } },
+  blockExplorers: { default: { name: "Robinhood Chain Explorer", url: "https://explorer.testnet.chain.robinhood.com" } },
+  testnet: true,
+};
+const RPC_URL = CHAIN.rpcUrls.default.http[0];
+const CHAIN_NAME = CHAIN.name;
+const EXPLORER_URL = CHAIN.blockExplorers.default.url;
+const NATIVE_CURRENCY = CHAIN.nativeCurrency;
+
+/** Read-only chain access, through viem rather than hand-rolled JSON-RPC. */
+const client = createPublicClient({ chain: CHAIN, transport: http(RPC_URL) });
+
+/**
+ * DOM contract of the running app: the test hooks in `components/WalletBar.tsx`
+ * and `components/NetworkBanner.tsx`. Asserting on these instead of on button
+ * copy means a wording change cannot turn a working app into a FAIL.
+ */
+const SEL = {
+  connect: '[data-testid="connect-wallet"]',
+  walletBar: '[data-testid="wallet-bar"]',
+  balance: '[data-testid="wallet-balance"]',
+  banner: '[data-testid="network-banner"]',
+  switchNetwork: '[data-testid="switch-network"]',
+};
 
 const CHROME = process.env.CHROME_PATH ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const CDP_PORT = 9336;
@@ -126,18 +154,6 @@ function formatUnitsSignificant(value, decimals, significant = 4) {
 
 /* ---------------------------------- chain ---------------------------------- */
 
-async function rpc(method, params = []) {
-  const res = await fetch(RPC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", "user-agent": "launchpad-check-wallet/1.0" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  if (!res.ok) throw new Error(`${method}: HTTP ${res.status} from the RPC`);
-  const body = await res.json();
-  if (body.error) throw new Error(`${method}: ${body.error.message ?? JSON.stringify(body.error)}`);
-  return body.result;
-}
-
 /* --------------------------- headless app driving --------------------------- */
 /*
  * Installed into the page *before* any app script runs, so wagmi sees a wallet
@@ -219,21 +235,10 @@ function installMockWallet(address) {
 
   provider.off = provider.removeListener;
   window.ethereum = provider;
-  window.__walletHarness = { log, state, emit };
+  window.__walletHarness = { log, state };
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * The wallet bar, read through the one stable handle it exposes: the radio
- * labelled copy button that sits next to the address and the balance badge.
- * Kept as function *source* so the same expression can be called once or polled.
- */
-const WALLET_BAR_FN = `(() => {
-  const anchor = document.querySelector('[aria-label="Copy wallet address"]');
-  if (!anchor || !anchor.parentElement) return null;
-  return anchor.parentElement.textContent.replace(/\\s+/g, ' ').trim();
-})`;
 
 async function driveApp({ url, address, expectedBalanceText }) {
   const chrome = spawn(
@@ -326,11 +331,14 @@ async function driveApp({ url, address, expectedBalanceText }) {
     });
     await send("Page.navigate", { url });
 
-    const clickByText = (text) =>
+    const present = (selector) => `Boolean(document.querySelector(${JSON.stringify(selector)}))`;
+    const textOf = (selector) =>
+      `((document.querySelector(${JSON.stringify(selector)})?.textContent ?? '').replace(/\\s+/g, ' ').trim())`;
+    const click = (selector) =>
       evaluate(`(() => {
-        const button = [...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(text)}));
-        if (!button) return false;
-        button.click();
+        const element = document.querySelector(${JSON.stringify(selector)});
+        if (!element) return false;
+        element.click();
         return true;
       })()`);
 
@@ -349,41 +357,43 @@ async function driveApp({ url, address, expectedBalanceText }) {
       throw new Error(`timed out waiting for ${label}`);
     };
 
-    // The wallet bar, read through the one stable handle it exposes: the radio
-    // labelled copy button next to the address and the balance badge.
-    const walletBarText = `(${WALLET_BAR_FN})()`;
-
-    await waitFor(
-      "the app's connect button",
-      "document.body.innerText.includes('Connect wallet') || Boolean(document.querySelector('[aria-label=\"Copy wallet address\"]'))",
-    );
-    if (!(await clickByText("Connect wallet"))) throw new Error("no 'Connect wallet' button on the page");
-    await waitFor("the wallet to connect", `Boolean(${walletBarText})`);
+    await waitFor("the app's connect button", `${present(SEL.connect)} || ${present(SEL.walletBar)}`);
+    if (!(await click(SEL.connect))) {
+      throw new Error(`no connect button (${SEL.connect}) on the page — is the app running the current code?`);
+    }
+    await waitFor("the wallet to connect", present(SEL.walletBar));
 
     // The mock wallet reports chain 1, so the app must warn before it switches.
-    const bannerShown = await evaluate("document.body.innerText.includes('Wrong network')");
-    check("the app warns about the wrong network (wallet on chain 1)", bannerShown);
+    const bannerShown = await evaluate(present(SEL.banner));
+    check(
+      "the app warns about the wrong network (wallet on chain 1)",
+      bannerShown,
+      bannerShown ? await evaluate(textOf(SEL.banner)) : `no ${SEL.banner} element`,
+    );
 
-    const clicked = await clickByText("Switch to");
+    const clicked = await click(SEL.switchNetwork);
     check("the banner offers a switch/add-network button", clicked);
 
     const bannerCleared = await evaluate(`(async () => {
       const deadline = Date.now() + 30000;
       while (Date.now() < deadline) {
-        if (!document.body.innerText.includes('Wrong network')) return true;
+        if (!document.querySelector(${JSON.stringify(SEL.banner)})) return true;
         await new Promise((r) => setTimeout(r, 500));
       }
       return false;
     })()`).catch(() => false);
     check("the banner clears once the wallet reports chain 46630", bannerCleared);
 
-    const harness = await evaluate("window.__walletHarness ? { log: window.__walletHarness.log, chainId: window.__walletHarness.state.chainId } : null");
+    const harness = await evaluate(
+      "window.__walletHarness ? { log: window.__walletHarness.log, chainId: window.__walletHarness.state.chainId } : null",
+    );
     const switchCall = harness?.log.find((entry) => entry.method === "wallet_switchEthereumChain");
     const addCall = harness?.log.find((entry) => entry.method === "wallet_addEthereumChain");
+    const chainIdHex = `0x${CHAIN.id.toString(16)}`;
 
     check(
       "the switch button asks the wallet for chain 46630",
-      switchCall?.params?.[0]?.chainId?.toLowerCase() === `0x${CHAIN_ID.toString(16)}`,
+      switchCall?.params?.[0]?.chainId?.toLowerCase() === chainIdHex,
       switchCall ? JSON.stringify(switchCall.params) : "no wallet_switchEthereumChain call",
     );
     check(
@@ -396,7 +406,7 @@ async function driveApp({ url, address, expectedBalanceText }) {
       const chain = addCall.params?.[0] ?? {};
       check(
         "the added network is chain 46630 with this repo's RPC, explorer and currency",
-        chain.chainId?.toLowerCase() === `0x${CHAIN_ID.toString(16)}` &&
+        chain.chainId?.toLowerCase() === chainIdHex &&
           chain.chainName === CHAIN_NAME &&
           Array.isArray(chain.rpcUrls) &&
           chain.rpcUrls[0] === RPC_URL &&
@@ -408,29 +418,32 @@ async function driveApp({ url, address, expectedBalanceText }) {
       );
       check(
         "the wallet ends up on chain 46630",
-        harness?.chainId === CHAIN_ID,
+        harness?.chainId === CHAIN.id,
         `wallet chainId ${harness?.chainId}`,
       );
     }
 
-    const barText = await evaluate(walletBarText);
+    const barText = await evaluate(textOf(SEL.walletBar));
     const shortened = `${address.slice(0, 6)}…${address.slice(-4)}`;
-    check("the wallet bar shows the wallet address", Boolean(barText?.includes(shortened)), barText ?? "no wallet bar");
+    check("the wallet bar shows the wallet address", barText.includes(shortened), barText || `no ${SEL.walletBar} element`);
 
-    const balanceReady = await evaluate(`(async () => {
-      const read = (${WALLET_BAR_FN});
+    const renderedBalance = await evaluate(`(async () => {
       const deadline = Date.now() + 30000;
+      let seen = '';
       while (Date.now() < deadline) {
-        const text = read();
-        if (text && text.includes(' ETH')) return text;
+        const text = ${textOf(SEL.balance)};
+        // The app renders a loading placeholder until the balance read lands;
+        // both the value and the error state carry the unit.
+        if (text.includes(' ETH')) return text;
+        seen = text;
         await new Promise((r) => setTimeout(r, 500));
       }
-      return '';
+      return seen;
     })()`);
     check(
       `the wallet bar shows the live balance (${expectedBalanceText})`,
-      balanceReady.includes(expectedBalanceText),
-      balanceReady || "no balance rendered",
+      renderedBalance === expectedBalanceText,
+      renderedBalance || `no ${SEL.balance} element`,
     );
 
     ws.close();
@@ -467,16 +480,17 @@ async function main() {
   console.log(`explorer ${EXPLORER_URL}/address/${address}`);
   console.log("");
 
-  const chainIdHex = await rpc("eth_chainId");
+  const reportedChainId = await client.getChainId();
   check(
-    `the RPC answers on chain ${CHAIN_ID}`,
-    Number.parseInt(chainIdHex, 16) === CHAIN_ID,
-    `eth_chainId ${Number.parseInt(chainIdHex, 16)}`,
+    `the RPC answers on chain ${CHAIN.id}`,
+    reportedChainId === CHAIN.id,
+    `eth_chainId ${reportedChainId}`,
   );
 
-  const [balanceHex, blockHex] = await Promise.all([rpc("eth_getBalance", [address, "latest"]), rpc("eth_blockNumber")]);
-  const balance = BigInt(balanceHex);
-  const block = Number.parseInt(blockHex, 16);
+  const [balance, block] = await Promise.all([
+    client.getBalance({ address }),
+    client.getBlockNumber({ cacheTime: 0 }),
+  ]);
   const balanceText = `${formatUnitsSignificant(balance, 18, 4)} ETH`;
 
   check(`the balance is at least ${MIN_ETH} ETH`, balance >= minWei, `${balanceText} at block ${block}`);
@@ -510,7 +524,7 @@ async function main() {
 
   console.log("");
   console.log(`SUMMARY  ${passes} passed, ${failures} failed, ${skipped} skipped`);
-  console.log(`RECORD address=${address} chainId=${CHAIN_ID} balance=${balance} wei (${balanceText}) block=${block}`);
+  console.log(`RECORD address=${address} chainId=${CHAIN.id} balance=${balance} wei (${balanceText}) block=${block}`);
   console.log("NOTE  the chain read is evidence; the --app phase drives a mock wallet, so it is wiring evidence, not funding evidence.");
   process.exit(failures > 0 ? 1 : 0);
 }
