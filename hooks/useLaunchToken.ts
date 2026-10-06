@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { parseEventLogs, toHex, zeroAddress, type Address, type Hash } from "viem";
+import { parseEventLogs, toHex, zeroAddress, type Abi, type Address, type Hash } from "viem";
 import { usePublicClient } from "wagmi";
 import { launchFactoryAbi } from "@/lib/abi/launchFactory";
 import { CONTRACTS } from "@/lib/contracts";
@@ -61,6 +61,26 @@ export function randomSalt(): `0x${string}` {
 }
 
 const EMPTY_SOCIALS = { twitter: "", telegram: "", discord: "", website: "", farcaster: "" };
+
+/**
+ * The factory ABI with the 4-argument `launchToken(…,address[] snipeTaxExemptions)`
+ * overload removed, leaving the 3-argument one this app sends.
+ *
+ * viem resolves an overloaded function name by matching the *positional* values of
+ * the args object against each candidate's components, and only falls back to the
+ * first overload in the ABI when nothing matches. `withDefaultLaunchParams` builds
+ * `TokenParams` by spreading the caller's partial over defaults, so the key order
+ * does not follow the ABI component order; that positional match fails, viem picks
+ * the 4-argument overload, and encoding throws `AbiEncodingLengthMismatchError`
+ * ("Expected length (params): 4, Given length (values): 3").
+ *
+ * Dropping the unused overload leaves exactly one candidate, so encoding no longer
+ * depends on object key order. Functions, events and custom errors are untouched,
+ * so revert decoding in `useContractWrite` keeps working.
+ */
+const launchTokenAbi = launchFactoryAbi.filter(
+  (item) => !(item.type === "function" && item.name === "launchToken" && item.inputs.length === 4),
+) as Abi;
 
 /** Fills in the optional `TokenParams` fields. */
 export function withDefaultLaunchParams(
@@ -151,7 +171,7 @@ export function useLaunchToken(): LaunchTokenState {
 
         const receipt = await send({
           address: CONTRACTS.launchFactory,
-          abi: launchFactoryAbi,
+          abi: launchTokenAbi,
           functionName: "launchToken",
           args: [
             { ...params, expectedEconomics, salt: randomSalt() },

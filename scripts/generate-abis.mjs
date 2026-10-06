@@ -19,7 +19,10 @@ const plan = {
       "canLaunch",
       "getLaunchedToken",
       "previewLaunchEconomics",
-      "launchToken", // both overloads kept (3-arg used by the UI)
+      // Both overloads are emitted; `hooks/useLaunchToken.ts` filters the 4-arg
+      // `…,address[] snipeTaxExemptions` one out at the call site, because viem's
+      // overload resolution would otherwise pick it and fail to encode 3 args.
+      "launchToken",
       "createGraduatedPool",
     ],
     events: ["TokenLaunched"],
