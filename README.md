@@ -68,9 +68,16 @@ npm run build        # production build (also typechecks)
 ```bash
 node scripts/verify-onchain.mjs                    # dump live launch data + all TokenLaunched events
 node scripts/verify-buy-quote.mjs <token> <eth>    # UI estimate vs node estimate vs contract eth_call
+node scripts/check-wallet.mjs <address> --app      # live balance + wallet bar / network banner wiring
 node scripts/screenshots.mjs http://localhost:3000 demo   # regenerate the demo/*.png
 node scripts/generate-abis.mjs                     # regenerate lib/abi/*.ts from technical-brief/abi
 ```
+
+`check-wallet.mjs` reads the address's balance on chain 46630 and prints a paste-ready `RECORD`
+line; with `--app` it also drives the running app in headless Chrome against a mock EIP-1193
+wallet and asserts that the wallet bar shows that address and balance and that the network banner
+switches to — or adds — chain 46630. The mock phase is wiring evidence only: funding a real wallet
+is a human step.
 
 `verify-buy-quote.mjs` drives the running app in headless Chrome, types an amount into the buy
 form, then compares three numbers: what the UI derived, what the same formula gives in Node, and
@@ -308,6 +315,13 @@ out to be *wrong*; these are the places where it is incomplete or could mislead.
 
 Automated:
 
+- `node scripts/check-wallet.mjs <address> --app <url>` — the wallet preflight, run against the
+  production build with a mock EIP-1193 wallet: 12/12 checks pass, including the wrong-network
+  banner, `wallet_switchEthereumChain` for chain 46630, the `4902` → `wallet_addEthereumChain`
+  fallback with this repo's RPC/explorer/currency, and the wallet bar rendering the address and the
+  live balance. The under-funded path was exercised too (an address below `--min` fails the balance
+  check and nothing else). It proves the app's side of steps 2 and 4; it cannot prove that a real
+  wallet holds funds — that is the funding step below.
 - `npm run lint`, `npm run typecheck`, `npm run build` — all clean.
 - `node scripts/verify-onchain.mjs` — dumps the live launch records. Used to confirm the five
   sample tokens, the phase values, `launchFee()`, the launch configs and the economics digest.
@@ -388,7 +402,7 @@ This project was written with an AI coding agent (Pi, driving Claude) working fr
 provided ABIs and the verified Sourcify source. Concretely:
 
 - **AI-written:** essentially all of the code — `lib/*`, `hooks/*`, `components/*`, `app/*`, the
-  three `scripts/*.mjs` helpers, this README, and the AGENTS.md guidelines.
+  five `scripts/*.mjs` helpers, this README, and the AGENTS.md guidelines.
 - **AI-run verification:** reading the Sourcify source to confirm the curve formula, the
   `GraduationPhase` enum and the custom errors; `effect`-free rewrites to satisfy the React
   Compiler lint rules; the `eth_call` simulation harness; the headless-Chrome console and

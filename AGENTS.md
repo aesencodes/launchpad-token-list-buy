@@ -77,6 +77,7 @@ scripts/                 dev-only Node helpers
   generate-abis.mjs      technical-brief/abi/*.json → lib/abi/*.ts
   verify-onchain.mjs     dump live launches + factory config
   verify-buy-quote.mjs   UI vs node vs contract eth_call, buy and sell
+  check-wallet.mjs       wallet funding + app wallet-bar/network-banner wiring
   screenshots.mjs        headless-Chrome screenshots + console capture into demo/
 demo/                    screenshots + how to regenerate them
 technical-brief/         the brief and the provided ABIs (unmodified)
@@ -241,6 +242,14 @@ Sell: `approve(curve, tokensIn)` on the token, then `sell(tokensIn, minQuoteOut,
   (with `stateOverride` for the sell path). All three must be equal to the wei.
 - `node scripts/screenshots.mjs <url> demo` regenerates the screenshots and reports any browser
   console errors/warnings. The production build must report none.
+- `node scripts/check-wallet.mjs <address> [--app <url>]` reads a wallet's chain-46630 balance and,
+  with `--app`, drives the running app in headless Chrome against a mock EIP-1193 wallet to assert
+  that the wallet bar shows the address and the live balance and that the network banner switches
+  to / adds chain 46630 with the right RPC, explorer and currency. It is *wiring* evidence: the
+  mock wallet cannot prove that a real MetaMask is funded, and the script says so in its output.
+  It asserts on `data-testid` hooks (`connect-wallet`, `wallet-bar`, `wallet-balance`,
+  `network-banner`, `switch-network`) rather than on button copy, so keep those attributes in sync
+  with `components/WalletBar.tsx` and `components/NetworkBanner.tsx` when either changes.
 - Manual acceptance pass against `technical-brief/TASK-BRIEF.en.md` steps 1–9 before
   finishing. Verify with MetaMask on chain 46630, including a real buy and a real sell.
 
