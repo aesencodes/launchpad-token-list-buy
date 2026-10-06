@@ -23,8 +23,9 @@ live `eth_call` reads), not against assumptions.
 3. `technical-brief/abi/*.json`.
 4. This file.
 
-Discrepancies between these are documented in `README.md` under
-"Findings / discrepancies". Do not silently "fix" the brief — verify on-chain and record it.
+Discrepancies between these are documented in `README.md` §5 ("Masalah yang ditemukan pada brief
+dan kontrak"); `README.en.md` is the English mirror of the same document, with identical section
+numbers. Do not silently "fix" the brief — verify on-chain and record it.
 
 ## Architecture
 
