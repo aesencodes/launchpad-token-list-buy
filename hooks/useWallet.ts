@@ -28,6 +28,21 @@ export type WalletState = {
 };
 
 /**
+ * Whether the page has a wallet injected into it.
+ *
+ * `useConnectors().length > 0` is **not** this check: the config always
+ * contains the `injected()` connector, so it stayed true even with nothing
+ * injecting `window.ethereum`. That made the "No browser wallet detected"
+ * banner unreachable and turned every connect attempt into a cryptic failure.
+ * `window.ethereum` is also what `injected()` itself targets (see
+ * `lib/wagmi.ts`), so this reads the same property the connector does.
+ */
+function hasInjectedWindowProvider(): boolean {
+  if (typeof window === "undefined") return false;
+  return Boolean((window as Window & { ethereum?: unknown }).ethereum);
+}
+
+/**
  * Single place that owns connection state, chain state and the
  * switch/add-network action.
  *
@@ -64,10 +79,11 @@ export function useWallet(): WalletState {
   const [isConnecting, setIsConnecting] = useState(false);
 
   const connector = connectors[0];
+  const hasInjectedProvider = mounted && hasInjectedWindowProvider();
 
   const connect = useCallback(async () => {
     setConnectError(null);
-    if (!connector) {
+    if (!connector || !hasInjectedProvider) {
       setConnectError({
         kind: "unknown",
         title: "No wallet found",
@@ -86,7 +102,7 @@ export function useWallet(): WalletState {
     } finally {
       setIsConnecting(false);
     }
-  }, [connector, connectAsync]);
+  }, [connector, connectAsync, hasInjectedProvider]);
 
   const switchToRobinhood = useCallback(async () => {
     setSwitchError(null);
@@ -109,7 +125,7 @@ export function useWallet(): WalletState {
     address: connection.address,
     chainId: mounted ? chainId : undefined,
     isSupportedChain: mounted && connection.isConnected && chainId === robinhoodTestnet.id,
-    hasInjectedProvider: connectors.length > 0,
+    hasInjectedProvider,
     connectorName: connector?.name,
     connect,
     disconnect: () => {

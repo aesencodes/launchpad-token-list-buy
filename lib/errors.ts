@@ -226,8 +226,56 @@ export function describeError(error: unknown): FriendlyError {
         message: "You rejected the request in your wallet, so nothing was sent.",
       };
     }
-    return { kind: "unknown", title: "Something went wrong", message: error.message };
+    return {
+      kind: "unknown",
+      title: "Something went wrong",
+      message: error.message || "The wallet failed without a message. Reload the page and try again.",
+    };
   }
 
-  return { kind: "unknown", title: "Something went wrong", message: String(error) };
+  // An injected wallet can reject with a plain object rather than an `Error`:
+  // MetaMask's EIP-1193 rejections cross the extension boundary that way and
+  // wagmi passes them straight through. Read the structured fields out of it —
+  // `String(object)` would render the useless "[object Object]" the brief
+  // forbids.
+  if (error && typeof error === "object") {
+    const { code, message } = error as { code?: unknown; message?: unknown };
+    const text = typeof message === "string" ? message : "";
+    if (code === 4001 || /user (rejected|denied)/i.test(text)) {
+      return {
+        kind: "rejected",
+        title: "Transaction rejected",
+        message: "You rejected the request in your wallet, so nothing was sent.",
+      };
+    }
+    if (code === -32002 || /already (processing|pending)/i.test(text)) {
+      return {
+        kind: "rpc",
+        title: "Wallet is busy",
+        message:
+          "Your wallet is already handling a request. Open MetaMask, finish or dismiss that prompt, then try again.",
+      };
+    }
+    if (code === 4902) {
+      return {
+        kind: "rpc",
+        title: "Network not added",
+        message: "Your wallet does not know Robinhood Chain Testnet yet. Use the switch button to add it.",
+      };
+    }
+    if (text) return { kind: "rpc", title: "Wallet request failed", message: text };
+    if (typeof code === "number") {
+      return {
+        kind: "unknown",
+        title: "Wallet request failed",
+        message: `Your wallet rejected the request (code ${code}).`,
+      };
+    }
+  }
+
+  return {
+    kind: "unknown",
+    title: "Something went wrong",
+    message: "The wallet did not return a readable error. Reload the page and try again.",
+  };
 }
