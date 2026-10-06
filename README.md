@@ -60,7 +60,10 @@ npm run build        # production build (also typechecks)
 3. MetaMask does not know chain `46630`. If your wallet is on another network a banner appears
    with **Switch to Robinhood Chain Testnet**; that same button also *adds* the network
    (`wallet_switchEthereumChain`, falling back to `wallet_addEthereumChain` on error 4902).
-4. Get testnet ETH from <https://faucet.testnet.chain.robinhood.com/> (0.05 ETH is plenty).
+4. Get testnet ETH from <https://faucet.testnet.chain.robinhood.com/> — it sends **0.01 ETH per
+   claim, once every 24 hours**. One claim is plenty: `gasPrice` is ~0.01 gwei (a buy costs
+   ~0.000002 ETH in gas) and `launchFee()` is 0.0005 ETH. `scripts/check-wallet.mjs` defaults
+   to `--min 0.01` for this reason; pass `--min` to require more.
 5. Pick a token (or open a deep link `/?token=0x…`), type an ETH amount, and press **Buy**.
 
 ### Developer / verification scripts

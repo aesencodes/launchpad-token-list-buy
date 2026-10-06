@@ -23,10 +23,10 @@
  *   otherwise.
  *
  * Usage:
- *   node scripts/check-wallet.mjs <address> [--min 0.05] [--app <url>]
+ *   node scripts/check-wallet.mjs <address> [--min 0.01] [--app <url>]
  *
  *   <address>      the wallet to check (any EIP-55 or lowercase 0x address)
- *   --min <eth>    required balance in ETH (default 0.05, the ticket's target)
+ *   --min <eth>    required balance in ETH (default 0.01 — one faucet claim)
  *   --app [url]    also drive the app in headless Chrome (needs it running;
  *                  the URL defaults to http://localhost:3000)
  *
@@ -91,7 +91,13 @@ const flag = (name, fallback) => {
 };
 
 const rawAddress = positional[0];
-const MIN_ETH = flag("min", "0.05");
+/* The faucet sends 0.01 ETH per claim, once every 24 hours, so any default above
+ * that fails a wallet the faucet has just funded (the earlier 0.05 default, taken
+ * from the ticket's "aim for >= 0.05 ETH", needed five daily claims). 0.01 is enough
+ * to trade: `gasPrice` sits at ~0.01 gwei (a ~200k-gas buy costs ~0.000002 ETH) and
+ * `launchFee()` is 0.0005 ETH. Raise it with `--min` for a heavier session. */
+const FAUCET_DRIP_ETH = "0.01";
+const MIN_ETH = flag("min", FAUCET_DRIP_ETH);
 /** `--app` on its own means the documented dev URL; no flag means "chain read only". */
 const APP_URL = flag("app", undefined) ?? (argv.some((arg) => arg === "--app" || arg.startsWith("--app=")) ? "http://localhost:3000" : undefined);
 
@@ -456,7 +462,7 @@ async function driveApp({ url, address, expectedBalanceText }) {
 
 async function main() {
   if (!rawAddress) {
-    console.error("usage: node scripts/check-wallet.mjs <address> [--min 0.05] [--app http://localhost:3000]");
+    console.error("usage: node scripts/check-wallet.mjs <address> [--min 0.01] [--app http://localhost:3000]");
     process.exit(2);
   }
 
@@ -499,6 +505,7 @@ async function main() {
     console.log(`  Not enough to trade with yet. Fund this address from https://faucet.testnet.chain.robinhood.com/`);
     console.log("  (it is behind a Cloudflare check, so it needs a real browser), or hand the address to the");
     console.log("  supervisor — the brief says they will send testnet ETH on the spot.");
+    console.log(`  The faucet drips ${FAUCET_DRIP_ETH} ETH per claim, once every 24 hours; this check requires ${MIN_ETH} ETH.`);
   }
 
   if (APP_URL === undefined) {
