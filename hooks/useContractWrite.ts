@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { usePublicClient, useWriteContract } from "wagmi";
+import { useConnection, usePublicClient, useWriteContract } from "wagmi";
 import {
+  BaseError,
   decodeErrorResult,
   encodeFunctionData,
   type Abi,
@@ -11,7 +12,7 @@ import {
   type Hex,
   type TransactionReceipt,
 } from "viem";
-import { describeError, type FriendlyError } from "@/lib/errors";
+import { describeDecodedRevert, describeError, type FriendlyError } from "@/lib/errors";
 
 /**
  * Every state a contract write can be in, mapped 1:1 to the states the brief
@@ -50,6 +51,67 @@ export type ContractWriteState = {
 };
 
 /**
+ * Pull the revert payload out of whatever viem wrapped it in.
+ *
+ * `eth_call`'s revert data does not sit on the `CallExecutionError` the caller
+ * catches — it is nested on the `RpcRequestError` underneath it, which is why
+ * the original code's `(error as { data?: Hex }).data` always read `undefined`
+ * and every replay fell through to the generic message.
+ */
+function revertDataFrom(error: unknown): Hex | undefined {
+  const isHex = (value: unknown): value is Hex => typeof value === "string" && value.startsWith("0x");
+  if (error instanceof BaseError) {
+    const found = error.walk((e) => isHex((e as { data?: unknown } | null)?.data));
+    return (found as { data?: Hex } | null)?.data;
+  }
+  return isHex((error as { data?: unknown } | null)?.data) ? (error as { data: Hex }).data : undefined;
+}
+
+/**
+ * Replays a request with `eth_call` on the RPC this app already trusts and
+ * decodes the revert against the same ABI.
+ *
+ * Returns `undefined` when the replay succeeds (the curve state moved on, so
+ * there is nothing to explain) or when the node returned no custom error that
+ * this ABI can decode. `account` is passed so sender-dependent guards —
+ * allowance, balance, whitelisting — reproduce instead of being silently
+ * evaluated against the zero address.
+ */
+async function replayForCustomError(
+  client: ReturnType<typeof usePublicClient>,
+  request: ContractWriteRequest,
+  account: Address | undefined,
+): Promise<FriendlyError | undefined> {
+  if (!client) return undefined;
+  try {
+    await client.call({
+      to: request.address,
+      data: encodeFunctionData(request as never),
+      value: request.value,
+      account,
+    });
+    return undefined;
+  } catch (error) {
+    const data = revertDataFrom(error);
+    if (!data) return undefined;
+    try {
+      const decoded = decodeErrorResult({ abi: request.abi, data });
+      const reason = decoded.args?.[0];
+      return describeDecodedRevert(decoded.errorName, typeof reason === "string" ? reason : undefined);
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+const GENERIC_REVERT: FriendlyError = {
+  kind: "reverted",
+  title: "Transaction reverted on-chain",
+  message:
+    "The transaction was mined but the contract reverted it. The price or curve state most likely moved past your slippage tolerance — review the numbers and retry.",
+};
+
+/**
  * Explains a reverted transaction by replaying it with `eth_call` and decoding
  * the custom error against the same ABI.
  *
@@ -60,35 +122,9 @@ export type ContractWriteState = {
 async function explainRevert(
   client: ReturnType<typeof usePublicClient>,
   request: ContractWriteRequest,
+  account: Address | undefined,
 ): Promise<FriendlyError> {
-  const generic: FriendlyError = {
-    kind: "reverted",
-    title: "Transaction reverted on-chain",
-    message:
-      "The transaction was mined but the contract reverted it. The price or curve state most likely moved past your slippage tolerance — review the numbers and retry.",
-  };
-  if (!client) return generic;
-
-  try {
-    await client.call({
-      to: request.address,
-      data: encodeFunctionData(request as never),
-      value: request.value,
-    });
-    return generic;
-  } catch (error) {
-    const data = (error as { data?: Hex }).data;
-    if (!data) return generic;
-    try {
-      const decoded = decodeErrorResult({ abi: request.abi, data });
-      return describeError(
-        // Reuse the translator by shaping the decoded name like a viem error.
-        Object.assign(new Error(decoded.errorName), { decodedErrorName: decoded.errorName }),
-      );
-    } catch {
-      return generic;
-    }
-  }
+  return (await replayForCustomError(client, request, account)) ?? GENERIC_REVERT;
 }
 
 /**
@@ -98,6 +134,7 @@ async function explainRevert(
  */
 export function useContractWrite(): ContractWriteState {
   const publicClient = usePublicClient();
+  const { address: account } = useConnection();
   const { writeContractAsync } = useWriteContract();
 
   const [phase, setPhase] = useState<TxPhase>("idle");
@@ -131,8 +168,18 @@ export function useContractWrite(): ContractWriteState {
         txHash = await writeContractAsync(request as never);
       } catch (writeError) {
         const friendly = describeError(writeError);
-        setPhase(friendly.kind === "rejected" ? "rejected" : "failed");
-        setError(friendly);
+        if (friendly.kind === "rejected") {
+          setPhase("rejected");
+          setError(friendly);
+          return undefined;
+        }
+        // The wallet refused it before broadcast. MetaMask reports a failed
+        // `eth_estimateGas` as a bare "Internal JSON-RPC error." with no
+        // revert payload, so the wallet's message cannot name the cause —
+        // replay the same call on the app's RPC and decode the custom error
+        // there, so the user gets the contract's actual reason.
+        setPhase("failed");
+        setError((await replayForCustomError(publicClient, request, account)) ?? friendly);
         return undefined;
       }
 
@@ -157,7 +204,7 @@ export function useContractWrite(): ContractWriteState {
         if (txReceipt.status === "reverted") {
           setReceipt(txReceipt);
           setPhase("reverted");
-          setError(await explainRevert(publicClient, request));
+          setError(await explainRevert(publicClient, request, account));
         } else {
           setReceipt(txReceipt);
           setPhase("success");
@@ -170,7 +217,7 @@ export function useContractWrite(): ContractWriteState {
         return undefined;
       }
     },
-    [publicClient, writeContractAsync],
+    [account, publicClient, writeContractAsync],
   );
 
   return {

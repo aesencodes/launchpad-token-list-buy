@@ -4,6 +4,7 @@ import {
   InsufficientFundsError,
   UserRejectedRequestError,
 } from "viem";
+import { robinhoodTestnet } from "@/lib/chain";
 
 export type FriendlyError = {
   kind: "rejected" | "reverted" | "insufficient_funds" | "rpc" | "unknown";
@@ -148,6 +149,38 @@ function nameFromMessage(message: string): string | undefined {
 }
 
 /**
+ * The wallet's *own* node failing the request before it is broadcast.
+ *
+ * MetaMask reports a node-side failure before broadcast — gas estimation or
+ * the send itself — as a bare "Internal JSON-RPC error." (`-32603`) with no
+ * revert payload, so nothing can be decoded from it and the string on its own
+ * tells the user nothing. Say what happened, that nothing was sent, and what
+ * to check.
+ */
+const PROVIDER_INTERNAL_ERROR = /internal json-rpc error|an internal error was received|unexpected error/i;
+
+function walletNodeFailed(): FriendlyError {
+  return {
+    kind: "rpc",
+    title: "Your wallet's node rejected the request",
+    message:
+      "Nothing was sent — the transaction never left your wallet. Your wallet's RPC for " +
+      `${robinhoodTestnet.name} failed the request, usually while estimating gas. Check the ` +
+      `network's RPC URL in your wallet (this app uses ${robinhoodTestnet.rpcUrls.default.http[0]}) ` +
+      "and try again.",
+  };
+}
+
+/**
+ * Translate an already-decoded custom error — used when a revert payload was
+ * recovered from a manual `eth_call` replay instead of from viem's own
+ * `ContractFunctionRevertedError`.
+ */
+export function describeDecodedRevert(errorName: string, reason?: string): FriendlyError {
+  return fromName(errorName, reason);
+}
+
+/**
  * Turn anything thrown by wagmi/viem/MetaMask into something a user can read.
  * Never returns raw hex or a stack trace.
  */
@@ -190,9 +223,18 @@ export function describeError(error: unknown): FriendlyError {
       | null;
     if (reverted) {
       const name = reverted.data?.errorName;
-      if (name && name !== "Error") return fromName(name);
       const reason = reverted.reason ?? reverted.data?.args?.[0];
-      return fromName(name ?? "Error", typeof reason === "string" ? reason : undefined);
+      const text = typeof reason === "string" ? reason : undefined;
+      // `data.errorName` is only set when the ABI actually decoded the revert
+      // payload. Without it viem still builds a `ContractFunctionRevertedError`
+      // — for a data-less node failure such as MetaMask's `-32603`, `reason` is
+      // then the node's own text ("Internal JSON-RPC error.") and there is no
+      // contract revert to translate. Never dress that up as a contract error.
+      if ((!name || name === "Error") && text && PROVIDER_INTERNAL_ERROR.test(text)) {
+        return walletNodeFailed();
+      }
+      if (name && name !== "Error") return fromName(name);
+      return fromName(name ?? "Error", text);
     }
 
     // wagmi sometimes only carries the decoded name in the message text
@@ -200,6 +242,8 @@ export function describeError(error: unknown): FriendlyError {
     const haystack = `${shortMessage} ${details} ${error.message}`;
     const name = nameFromMessage(haystack);
     if (name) return fromName(name);
+
+    if (PROVIDER_INTERNAL_ERROR.test(haystack)) return walletNodeFailed();
 
     if (error.name === "ChainMismatchError") {
       return {
@@ -263,6 +307,7 @@ export function describeError(error: unknown): FriendlyError {
         message: "Your wallet does not know Robinhood Chain Testnet yet. Use the switch button to add it.",
       };
     }
+    if (code === -32603 || PROVIDER_INTERNAL_ERROR.test(text)) return walletNodeFailed();
     if (text) return { kind: "rpc", title: "Wallet request failed", message: text };
     if (typeof code === "number") {
       return {
