@@ -43,8 +43,8 @@ function planChunks(from: bigint, to: bigint, size: bigint): Array<[bigint, bigi
  * anything larger).
  *
  * There is deliberately no cached "already scanned" cursor: a full rescan is
- * only ~10 requests today and it keeps the list correct if the node reorgs or
- * if a launch lands while the page is open.
+ * a handful of requests today (13 on 2026-10-06) and it keeps the list correct
+ * if the node reorgs or if a launch lands while the page is open.
  */
 export async function fetchLaunches(
   client: PublicClient,

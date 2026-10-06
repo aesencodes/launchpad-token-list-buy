@@ -100,6 +100,7 @@ async function main() {
       feeBps,
       creatorTaxBps,
       snipeTaxBps,
+      snipeTaxSeconds,
       readyToGraduate,
       sellableTokens,
       launched,
@@ -112,6 +113,7 @@ async function main() {
       client.readContract({ address: curve, abi: curveAbi, functionName: "feeBps" }),
       client.readContract({ address: curve, abi: curveAbi, functionName: "creatorTaxBps" }),
       client.readContract({ address: curve, abi: curveAbi, functionName: "snipeTaxStartBps" }),
+      client.readContract({ address: curve, abi: curveAbi, functionName: "snipeTaxSeconds" }),
       client.readContract({ address: curve, abi: curveAbi, functionName: "readyToGraduate" }),
       client.readContract({ address: curve, abi: curveAbi, functionName: "sellableTokens" }),
       client.readContract({ address: FACTORY, abi: factoryAbi, functionName: "getLaunchedToken", args: [token] }),
@@ -133,7 +135,7 @@ async function main() {
       `  readyToGraduate=${readyToGraduate} sellableTokens=${sellableTokens} (trading is closed whenever readyToGraduate is true, even if phase is still 0)`,
     );
     console.log(
-      `  price=${price} wei/token (${price / 10n ** 12n === 0n ? "very small" : ""}) progressBps=${progressBps} feeBps=${feeBps} creatorTaxBps=${creatorTaxBps} snipeTaxStartBps=${snipeTaxBps}`,
+      `  price=${price} wei/token (${price / 10n ** 12n === 0n ? "very small" : ""}) progressBps=${progressBps} feeBps=${feeBps} creatorTaxBps=${creatorTaxBps} snipeTaxStartBps=${snipeTaxBps} snipeTaxSeconds=${snipeTaxSeconds}`,
     );
   }
 }
