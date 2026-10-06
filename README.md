@@ -72,6 +72,7 @@ npm run build        # production build (also typechecks)
 node scripts/verify-onchain.mjs                    # dump live launch data + all TokenLaunched events
 node scripts/verify-buy-quote.mjs <token> <eth>    # UI estimate vs node estimate vs contract eth_call
 node scripts/check-wallet.mjs <address> --app      # live balance + wallet bar / network banner wiring
+node scripts/capture-live-trade.mjs <url> <dir>    # drive the real buy/sell path with a funded test key
 node scripts/screenshots.mjs http://localhost:3000 demo   # regenerate the demo/*.png
 node scripts/generate-abis.mjs                     # regenerate lib/abi/*.ts from technical-brief/abi
 ```
@@ -86,6 +87,13 @@ is a human step.
 form, then compares three numbers: what the UI derived, what the same formula gives in Node, and
 what the contract itself returns from an `eth_call` to `buy(...)`. All three match to the wei —
 see [section 6](#6-verification-performed).
+
+`capture-live-trade.mjs` is the live-trade harness. It drives the real UI through connect →
+wrong-network banner → switch/add chain → buy → sell, and signs every transaction locally with a
+funded test key the caller supplies at runtime (`LIVE_TRADE_KEY`, `--key-file`, or
+`~/.launchpad-live.key`) — the key never reaches the repo or the page, and `--expect` refuses to
+trade if it does not derive the intended address. Unlike the other harnesses its wallet is not a
+mock: it owns a real account, forwards reads to the public RPC, and broadcasts real transactions.
 
 ---
 
@@ -377,6 +385,17 @@ Automated:
   `msg.value == quoteIn` for the buy, and a curve state that accepts them. The sell simulation
   overrides only the caller's ERC-20 balance/allowance storage slots (slot 0 and slot 1 of the
   token), so the curve's own pricing logic runs against real reserves.
+- `node scripts/capture-live-trade.mjs <url> demo` — the live-trade harness for step 7 (issue #7).
+  Run with the funded test key it captures `demo/07…16` (connected wallet, wrong-network banner,
+  GRAD disabled, `Confirm in wallet` → pending → success with the received amount → rejected →
+  reverted, then the approve → sell pair) and prints each mined hash, parsing `tokensOut`/
+  `quoteOut` from the `CurveBuy`/`CurveSell` events on the receipts. **Not yet run against a funded
+  signer** — see [section 7](#7-what-is-unfinished). What *is* verified: with an unfunded key it
+  completes connect, the wrong-network banner, the `4902` → add-network switch, the deep links, the
+  GRAD disabled state and the bigint estimate, then stops exactly where it should — the buy button
+  is disabled for a zero-balance wallet, so no transaction is attempted. Its signing path was also
+  checked directly against the node: the transaction it builds is rejected only for insufficient
+  funds, not for encoding or argument order.
 - Headless-Chrome console capture over all six screenshots — no errors or warnings in the
   production build.
 - **Fresh-clone run:** the pushed branch was cloned into an empty directory, installed with
@@ -397,7 +416,8 @@ Manual (what you should do, and what I could not):
 environment this was built in had no funded MetaMask account to sign with, and testnet keys/seed
 phrases must never be committed. The transaction code path is therefore verified by contract
 simulation and by construction, not by a mined hash — that is the main thing to confirm in the
-live demo.
+live demo. `scripts/capture-live-trade.mjs` exists to close that gap in one command; it still needs
+a funded signer (below).
 
 ---
 
@@ -405,6 +425,12 @@ live demo.
 
 - **No mined buy/sell/launch transaction was produced** (see above). Everything up to signing is
   verified against the live contract, including the exact `tokensOut`/`quoteOut` the curve returns.
+  An agent session cannot close this on its own: the only signer is a funded wallet whose key lives
+  in MetaMask, and the faucet that funds it is gated by Cloudflare Turnstile **plus Google Sign-In**
+  (and its hostname is DNS-blocked on some ISPs), so it cannot be driven headlessly. The funded
+  wallet from issue #5 holds 0.11 ETH on chain 46630 with `nonce` 0, so one command is enough:
+  export that test account's key to `~/.launchpad-live.key` (or set `LIVE_TRADE_KEY`) and run
+  `node scripts/capture-live-trade.mjs http://localhost:3000 demo`.
 - **Token detail page with trade history** (a listed bonus) is not implemented. The Details tab
   shows description, creator, deployer, socials, launch config, thresholds and the contract
   addresses; there is no `CurveBuy`/`CurveSell` history table.

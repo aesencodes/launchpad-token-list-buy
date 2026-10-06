@@ -115,7 +115,13 @@ export function BuyForm({
   const walletAction = !isConnected ? "connect" : !isSupportedChain ? "switch" : null;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className="flex flex-col gap-4"
+      data-testid="buy-form"
+      data-phase={buy.phase}
+      data-hash={buy.hash ?? ""}
+      data-error={buy.error?.message ?? ""}
+    >
       {/* Amount */}
       <div>
         <div className="mb-1.5 flex items-center justify-between">
@@ -165,6 +171,7 @@ export function BuyForm({
         data-raw-min-tokens-out={quote && quote.tokensOut > 0n ? minTokensOut.toString() : ""}
         data-raw-fee={quote ? quote.fee.toString() : ""}
         data-raw-creator-tax={quote ? quote.creatorTax.toString() : ""}
+        data-raw-token-balance={token.userTokenBalance === null ? "" : token.userTokenBalance.toString()}
       >
         <div className="flex items-baseline justify-between gap-3">
           <span className="inline-flex items-center gap-1.5 text-[12px] text-zinc-500">
@@ -287,7 +294,7 @@ export function BuyForm({
       ) : null}
 
       {blockers.length > 0 && buy.phase !== "rejected" && buy.phase !== "reverted" && buy.phase !== "failed" ? (
-        <ul className="flex flex-col gap-1 text-[11px] text-zinc-500">
+        <ul className="flex flex-col gap-1 text-[11px] text-zinc-500" data-testid="buy-blockers">
           {blockers.map((blocker) => (
             <li key={blocker}>• {blocker}</li>
           ))}
@@ -312,6 +319,7 @@ export function BuyForm({
         variant="primary"
         size="lg"
         block
+        data-testid="buy-submit"
         onClick={handlePrimary}
         loading={buy.isBusy}
         disabled={!canSubmit}

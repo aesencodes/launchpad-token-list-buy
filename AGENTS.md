@@ -78,6 +78,7 @@ scripts/                 dev-only Node helpers
   verify-onchain.mjs     dump live launches + factory config
   verify-buy-quote.mjs   UI vs node vs contract eth_call, buy and sell
   check-wallet.mjs       wallet funding + app wallet-bar/network-banner wiring
+  capture-live-trade.mjs funded-key harness: drives the real buy/sell path, signs, captures states
   screenshots.mjs        headless-Chrome screenshots + console capture into demo/
 demo/                    screenshots + how to regenerate them
 technical-brief/         the brief and the provided ABIs (unmodified)
@@ -255,6 +256,18 @@ Sell: `approve(curve, tokensIn)` on the token, then `sell(tokensIn, minQuoteOut,
   It asserts on `data-testid` hooks (`connect-wallet`, `wallet-bar`, `wallet-balance`,
   `network-banner`, `switch-network`) rather than on button copy, so keep those attributes in sync
   with `components/WalletBar.tsx` and `components/NetworkBanner.tsx` when either changes.
+- `node scripts/capture-live-trade.mjs <url> <dir>` drives the real buy/sell path with a funded key
+  supplied at runtime (`LIVE_TRADE_KEY`/`--key-file`, never committed; `--expect` defaults to the
+  issue #5 wallet and refuses any other key). It asserts on the same kind of hooks — `token-card`
+  with `data-token`/`data-symbol`/`data-phase`, `trade-panel`, `trade-summary`,
+  `tab-buy`/`tab-sell`/`tab-details`, `buy-form`/`sell-form` with `data-phase`/`data-hash`/
+  `data-error` (plus `data-step` on the sell form), `buy-submit`/`sell-submit`,
+  `buy-blockers`/`sell-blockers`, and `buy-estimate`/`sell-estimate` with their `data-raw-*` values
+  (including `data-raw-token-balance`) — so those attributes in `components/TokenCard.tsx`,
+  `components/TradePanel.tsx`, `components/BuyForm.tsx` and `components/SellForm.tsx` are a contract
+  too. It is not a MetaMask run: the wallet is a scripted provider that signs real transactions with
+  the supplied key, so it proves the app's path and the contracts, not that an extension prompts a
+  human.
 - Manual acceptance pass against `technical-brief/TASK-BRIEF.en.md` steps 1–9 before
   finishing. Verify with MetaMask on chain 46630, including a real buy and a real sell.
 

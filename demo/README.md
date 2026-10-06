@@ -19,18 +19,26 @@ number in them was read from Robinhood Chain Testnet at capture time.
 
 ## Capturing a wallet transaction
 
-The screenshots above show the disconnected state, because a funded MetaMask account cannot be
-driven from a script without handling a seed phrase — and seed phrases must never be committed.
+The screenshots above show the disconnected state, because the transaction states need a funded
+signer. Two ways to produce them:
 
-To produce the transaction evidence (wallet-confirmation → pending → success) yourself:
+**The harness (reproducible).** With the funded test account's key available at runtime — never
+committed — one command drives the whole path and writes the captures plus a `live-trade-record.json`
+with every mined hash:
 
-1. `npm run build && npm start`
-2. Open the app in Chrome with MetaMask, on chain 46630, with testnet ETH.
-3. Buy a small amount of FRESH, EARLY or TAXED.
-4. Screenshot (or record) the four states: "Confirm in wallet", the pending alert with the
-   explorer link, the success alert with the received amount, and the card's price/progress plus
-   your balances updating without a reload.
-5. Drop the images into this folder.
+```bash
+node scripts/capture-live-trade.mjs http://localhost:3000 demo
+```
+
+It signs each transaction locally from `LIVE_TRADE_KEY` (or `--key-file`, or `~/.launchpad-live.key`),
+and refuses to trade unless the key derives `--expect` (default: issue #5's funded wallet). It emits
+`07-desktop-connected-wallet.png`, `08-desktop-wrong-network-banner.png`,
+`09-desktop-grad-buy-disabled.png`, `10`–`12` for the buy (confirm → pending → success with the
+`CurveBuy` amount), `13` for the rejected prompt, `14` for the reverted transaction and `15`–`16`
+for the approve → sell pair.
+
+**By hand.** Buy a small amount of FRESH, EARLY or TAXED in MetaMask on chain 46630 and screenshot
+the same five states, then sell a little back; drop the images into this folder.
 
 ## Regenerating the checked-in screenshots
 

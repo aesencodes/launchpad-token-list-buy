@@ -100,7 +100,10 @@ export function TradePanel({ token, wallet, ethBalance, onClose, onRefresh }: Tr
   const threshold = token.graduationThreshold > 0n ? token.graduationThreshold : token.launch.graduationThreshold;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-[var(--page)]/95 backdrop-blur-sm lg:static lg:z-auto lg:overflow-visible lg:bg-transparent lg:backdrop-blur-none">
+    <div
+      data-testid="trade-panel"
+      className="fixed inset-0 z-50 overflow-y-auto bg-[var(--page)]/95 backdrop-blur-sm lg:static lg:z-auto lg:overflow-visible lg:bg-transparent lg:backdrop-blur-none"
+    >
       <Card className="min-h-full rounded-none border-x-0 lg:min-h-0 lg:rounded-2xl lg:border-x">
         <div className="flex items-start gap-3 border-b border-white/[0.07] p-4">
           <TokenLogo src={token.logo} symbol={token.symbol} className="size-11 text-base" />
@@ -135,7 +138,10 @@ export function TradePanel({ token, wallet, ethBalance, onClose, onRefresh }: Tr
 
         <div className="flex flex-col gap-4 p-4">
           {/* Curve summary */}
-          <div className="flex flex-col gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3">
+          <div
+            data-testid="trade-summary"
+            className="flex flex-col gap-2 rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3"
+          >
             <LabelValue label="Spot price" value={`${formatPriceEth(token.priceWeiPerToken)} ETH`} />
             <LabelValue label="Real ETH collected" value={`${formatEth(token.realQuoteReserve, 6)} ETH`} />
             <LabelValue label="Graduation target" value={`${formatEth(threshold, 6)} ETH`} />
@@ -183,6 +189,7 @@ export function TradePanel({ token, wallet, ethBalance, onClose, onRefresh }: Tr
               <button
                 key={value}
                 type="button"
+                data-testid={`tab-${value}`}
                 onClick={() => setTab(value)}
                 aria-current={tab === value}
                 className={cn(

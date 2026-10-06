@@ -27,6 +27,10 @@ export function TokenCard({
 
   return (
     <article
+      data-testid="token-card"
+      data-token={token.launch.token}
+      data-symbol={token.symbol}
+      data-phase={token.phase}
       className={cn(
         "group relative flex flex-col overflow-hidden rounded-2xl border transition-colors",
         selected

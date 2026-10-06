@@ -103,7 +103,14 @@ export function SellForm({
   const walletAction = !isConnected ? "connect" : !isSupportedChain ? "switch" : null;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className="flex flex-col gap-4"
+      data-testid="sell-form"
+      data-phase={sell.phase}
+      data-step={sell.step}
+      data-hash={sell.hash ?? ""}
+      data-error={sell.error?.message ?? ""}
+    >
       <div>
         <div className="mb-1.5 flex items-center justify-between">
           <label htmlFor="sell-amount" className="text-[12px] font-medium text-zinc-400">
@@ -239,7 +246,7 @@ export function SellForm({
       ) : null}
 
       {blockers.length > 0 && sell.phase !== "rejected" && sell.phase !== "reverted" && sell.phase !== "failed" ? (
-        <ul className="flex flex-col gap-1 text-[11px] text-zinc-500">
+        <ul className="flex flex-col gap-1 text-[11px] text-zinc-500" data-testid="sell-blockers">
           {blockers.map((blocker) => (
             <li key={blocker}>• {blocker}</li>
           ))}
@@ -264,6 +271,7 @@ export function SellForm({
         variant="secondary"
         size="lg"
         block
+        data-testid="sell-submit"
         onClick={handlePrimary}
         loading={sell.isBusy}
         disabled={!canSubmit}
